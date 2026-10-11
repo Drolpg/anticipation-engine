@@ -1,0 +1,6 @@
+# Normaliza finais de linha: o código roda em containers Linux.
+# CRLF em scripts shell/Dockerfile quebra a execução ("/bin/sh^M: not found").
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary

@@ -1,0 +1,83 @@
+# Motor de Antecipação de Recebíveis - FIDC Mock
+# Segredos vêm do arquivo .env (nunca commitado) via interpolação ${VAR}.
+
+x-app-common: &app-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: anticipation-engine:latest
+  env_file: .env
+  environment:
+    # Os hosts 'db' e 'redis' são resolvidos pelo DNS interno da rede do Compose.
+    # Nomes batem com core/config.py (Settings.database_url / Settings.redis_url).
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    REDIS_URL: redis://redis:6379/0
+  networks:
+    - hope_network
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *app-common
+    container_name: fidc_api
+    # Só a API aplica migrações; o worker apenas espera o banco ficar saudável.
+    command: sh -c "alembic upgrade head && uvicorn anticipation_engine.main:app --host 0.0.0.0 --port 8000"
+    # Único serviço exposto ao host
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *app-common
+    container_name: fidc_worker
+    command: celery -A anticipation_engine.worker.celery_app worker --loglevel=INFO
+
+  db:
+    image: postgres:17-alpine
+    container_name: fidc_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - hope_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # NOTA SÊNIOR: Não usamos 'ports: - "5432:5432"' aqui.
+    # O banco de dados fica completamente oculto do hospedeiro e da internet.
+
+  redis:
+    image: redis:7-alpine
+    container_name: fidc_redis
+    # AOF ligado: mensagens na fila sobrevivem a um restart do Redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - hope_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+# Declaração das redes isoladas
+networks:
+  hope_network:
+    driver: bridge
+
+# Declaração dos volumes gerenciados
+volumes:
+  pg_data:
+  redis_data:
