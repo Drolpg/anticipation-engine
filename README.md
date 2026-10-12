@@ -147,7 +147,7 @@ uv run pytest --cov=anticipation_engine --cov-report=term-missing
 
 # Executar checagem estática com Ruff:
 uv run ruff check .
-uv run ruff format --check src
+uv run ruff format --check .
 ```
 
 ---
