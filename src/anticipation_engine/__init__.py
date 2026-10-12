@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from anticipation-engine!")
+"""Motor de Antecipação de Recebíveis."""
