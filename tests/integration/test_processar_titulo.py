@@ -53,9 +53,7 @@ def test_nao_segura_transacao_aberta_durante_a_analise(db, criar_titulo, monkeyp
 
     titulo = criar_titulo()
     estado = {}
-    monkeypatch.setattr(
-        analise_credito.time, "sleep", lambda _s: estado.update(em_transacao=db.in_transaction())
-    )
+    monkeypatch.setattr(analise_credito.time, "sleep", lambda _s: estado.update(em_transacao=db.in_transaction()))
 
     processar_titulo(db, titulo.id)
 
@@ -72,9 +70,7 @@ def test_nao_sobrescreve_decisao_feita_por_outro_worker_durante_a_analise(
 
     def outro_worker_decide_primeiro(_segundos):
         with session_factory() as outra:
-            outra.execute(
-                update(Titulo).where(Titulo.id == titulo.id).values(status=StatusTitulo.REJEITADO)
-            )
+            outra.execute(update(Titulo).where(Titulo.id == titulo.id).values(status=StatusTitulo.REJEITADO))
             outra.commit()
 
     monkeypatch.setattr(analise_credito.time, "sleep", outro_worker_decide_primeiro)

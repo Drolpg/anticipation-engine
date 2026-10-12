@@ -70,9 +70,7 @@ INVALIDOS = [
 
 
 @pytest.mark.parametrize("campo, valor", INVALIDOS)
-def test_payload_invalido_retorna_422_sem_salvar_nem_enfileirar(
-    client, db, payload_valido, enfileirados, campo, valor
-):
+def test_payload_invalido_retorna_422_sem_salvar_nem_enfileirar(client, db, payload_valido, enfileirados, campo, valor):
     payload_valido[campo] = valor
 
     r = client.post("/titulos", json=payload_valido)
