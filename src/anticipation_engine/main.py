@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from anticipation_engine.api import health_router, titulos_router
+from anticipation_engine.core.config import get_settings
 from anticipation_engine.core.errors import AppError
 from anticipation_engine.core.logging import configure_logging
 
@@ -21,7 +22,8 @@ logger = logging.getLogger("anticipation_engine")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Gerencia ciclo de vida da aplicação inicializando logs estruturados."""
-    configure_logging()
+    settings = get_settings()
+    configure_logging(settings.log_level)
     yield
 
 
