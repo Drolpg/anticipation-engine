@@ -5,7 +5,7 @@ from fastapi import APIRouter
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health")
+@router.get("/health", summary="Verificar saúde do serviço")
 def health() -> dict[str, str]:
-    """Retorna o estado de prontidão e saúde do serviço."""
+    """Responde `200` quando a API está no ar. Usado pelo healthcheck do Docker e por monitoramento externo."""
     return {"status": "ok"}

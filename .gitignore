@@ -17,3 +17,7 @@ wheels/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Deploy: artefatos temporários e guia pessoal (não versionados)
+.deploy-*
+docs/local/

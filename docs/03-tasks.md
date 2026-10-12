@@ -86,3 +86,20 @@ Alvo: `tests/infra/test_docker_compose.py` · `tests/e2e/test_e2e_compose.py`
 - [x] **M8-T1** `uv run pytest --cov=anticipation_engine --cov-report=term-missing` ≥ 90%.
 - [x] **M8-T2** `README.md`: o que é, diagrama, como subir, como testar, "fora do MVP".
 - [x] **M8-T3** (opcional) GitHub Actions: ruff + pytest.
+
+## M9 — Documentação da API (OpenAPI)
+Alvo: `tests/integration/test_openapi.py`
+- [x] **M9-T1** `schemas/erro.py` com `ErrorResponse` (o mesmo envelope que os handlers devolvem) e o helper `resposta_de_erro`.
+- [x] **M9-T2** `Field(description=..., examples=[...])` em todos os campos de `TituloCreate`, `TituloCreated` e `TituloRead`.
+- [x] **M9-T3** `summary`, docstring e `responses={404, 422, 500, 503}` nas rotas; `description` e `openapi_tags` no `FastAPI(...)`.
+
+**Conceitos:** como o FastAPI gera o OpenAPI a partir dos tipos; por que documentar o erro real em vez do padrão. **Revisão:** abrir `/docs` e executar o POST pelo Swagger.
+
+## M10 — Deploy de demonstração (AWS)
+Alvo: `tests/infra/test_deploy_aws.py`
+- [x] **M10-T1** `docker-compose.yml`: porta da API configurável (`API_BIND`/`API_PORT`), padrão só `127.0.0.1:8000`.
+- [x] **M10-T2** `deploy/aws/template.yaml`: EC2 Graviton, Elastic IP, Security Group (80), IAM para SSM/S3/Parameter Store, bucket privado.
+- [x] **M10-T3** `deploy/aws/deploy.sh` e `remote-deploy.sh`: ciclo de vida completo; senha gerada no Parameter Store.
+- [ ] **M10-T4** (manual, na sua conta) `bash deploy/aws/deploy.sh up`, testar `/docs` e `E2E_BASE_URL=... pytest -m e2e`, depois `stop` ou `destroy`.
+
+**Conceitos:** CloudFormation, IAM role vs chave de acesso, SSM vs SSH, custo de cada recurso. **Revisão:** `cfn-lint` e `shellcheck` limpos.

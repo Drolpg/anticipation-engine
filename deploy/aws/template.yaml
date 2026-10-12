@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Demo do Motor de Antecipacao de Recebiveis: uma unica instancia EC2 (Graviton) rodando o docker compose
+  (API, worker, PostgreSQL e Redis). Sem SSH (acesso por SSM), sem NAT, sem RDS: custo minimo.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: anticipation-engine
+    Description: Prefixo dos recursos. O deploy.sh usa o mesmo nome no parametro da senha do banco.
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    AllowedValues: [t4g.micro, t4g.small, t4g.medium]
+    Description: Graviton (arm64). t4g.small (2 GB) e o minimo confortavel para API + worker + Postgres + Redis + build.
+  AllowedCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+    Description: Quem pode acessar a API na porta 80. Use SEU_IP/32 para fechar a demo so para voce.
+  PostgresPasswordParameter:
+    Type: String
+    Default: anticipation-engine-postgres-password
+    Description: Nome do parametro SecureString (Parameter Store) com a senha do banco. Criado pelo deploy.sh.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Resources:
+  PackageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expira-pacotes-antigos
+            Status: Enabled
+            ExpirationInDays: 7
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: le-pacote-e-senha
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${PackageBucket.Arn}/*"
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${PostgresPasswordParameter}"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP da demo. Sem SSH; administracao por SSM.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref AllowedCidr
+          Description: API e documentacao
+
+  Server:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds: [!GetAtt SecurityGroup.GroupId]
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Ref ProjectName
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          # Prepara a maquina uma unica vez (Docker, Compose, buildx e swap). O codigo chega pelo deploy.sh.
+          set -euxo pipefail
+          dnf install -y docker
+          systemctl enable --now docker
+
+          # Swap: o build da imagem e o Postgres disputam memoria em 2 GB.
+          fallocate -l 1G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+          # Plugins do Docker (nao vem no pacote do Amazon Linux). Versoes fixas = deploy reproduzivel.
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+            https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-aarch64
+          curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-buildx \
+            https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-arm64
+          chmod +x /usr/local/lib/docker/cli-plugins/*
+          docker compose version
+          mkdir -p /opt/app
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref Server
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "http://${ElasticIp}"
+  DocsUrl:
+    Value: !Sub "http://${ElasticIp}/docs"
+  PublicIp:
+    Value: !Ref ElasticIp
+  InstanceId:
+    Value: !Ref Server
+  PackageBucket:
+    Value: !Ref PackageBucket

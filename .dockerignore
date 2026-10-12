@@ -8,3 +8,7 @@
 htmlcov
 .env
 tests
+docs
+.github
+deploy
+.deploy-*

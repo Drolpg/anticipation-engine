@@ -38,6 +38,11 @@ def test_api_expoe_porta_8000(compose):
     assert any("8000" in str(p) for p in compose["services"]["api"]["ports"])
 
 
+def test_api_exposta_apenas_em_localhost(compose):
+    """A API não tem autenticação: por padrão só a própria máquina acessa (o deploy na AWS muda via API_BIND)."""
+    assert all(str(p).startswith("${API_BIND:-127.0.0.1}:") for p in compose["services"]["api"]["ports"])
+
+
 def test_banco_e_redis_nao_sao_expostos_ao_host(compose):
     assert "ports" not in compose["services"]["db"]
     assert "ports" not in compose["services"]["redis"]
@@ -48,6 +53,14 @@ def test_api_aplica_migracoes_antes_de_subir(compose):
     comando = comando if isinstance(comando, str) else " ".join(comando)
     assert "alembic upgrade head" in comando and "uvicorn" in comando
     assert comando.index("alembic upgrade head") < comando.index("uvicorn")
+
+
+def test_api_tem_healthcheck(compose):
+    assert "healthcheck" in compose["services"]["api"]
+
+
+def test_worker_espera_a_api_saudavel_porque_ela_aplica_as_migracoes(compose):
+    assert compose["services"]["worker"]["depends_on"]["api"]["condition"] == "service_healthy"
 
 
 def test_worker_roda_celery(compose):

@@ -2,7 +2,7 @@
 
 > Fonte da verdade do comportamento. Versão 1.2 · status: **aprovada para implementação**.
 >
-> **Histórico:** v1.0 versão inicial · v1.1 simplificação (sem hexagonal) · v1.2 Alembic obrigatório (RNF-08).
+> **Histórico:** v1.0 versão inicial · v1.1 simplificação (sem hexagonal) · v1.2 Alembic obrigatório (RNF-08) · v1.3 documentação OpenAPI e deploy de demonstração (RNF-09, RNF-10).
 > Mudou o comportamento? Altere aqui primeiro (ver `00-constitution.md`).
 
 ## 1. Visão geral
@@ -104,6 +104,8 @@ Response `200`:
 - **RNF-06 Testabilidade**: suíte rápida sem Docker (SQLite + fakes); E2E real opt-in (`pytest -m e2e`).
 - **RNF-07 Simplicidade**: padrão em camadas do FastAPI; integrações isoladas em funções simples (`fila.enfileirar_analise`, `analisar`); sem repository nem hexagonal.
 - **RNF-08 Schema versionado**: tabelas criadas **somente** por migrações Alembic (`alembic upgrade head`); migração inicial cria `titulos`; models e migrações sempre sincronizados; `downgrade base` funciona.
+- **RNF-09 API documentada**: Swagger UI em `/docs`, ReDoc em `/redoc` e contrato em `/openapi.json`; toda operação com resumo, descrição e respostas de erro (`404`, `422`, `500`, `503`) no envelope unificado `ErrorResponse`; campos dos schemas com descrição e exemplo válido; o `HTTPValidationError` padrão do FastAPI não aparece (a API não responde nesse formato).
+- **RNF-10 Deploy de demonstração**: IaC em `deploy/aws` (CloudFormation) sobe uma única instância com o mesmo `docker compose`; custo mínimo (`t4g.small`, sem RDS/NAT/ALB); só a porta 80 aberta, sem SSH (acesso por SSM); senha do banco no Parameter Store; script `deploy.sh` com `up`, `deploy`, `status`, `logs`, `stop`, `start`, `destroy`.
 
 ## 9. Matriz de rastreabilidade
 | Requisito | Testes |
@@ -121,6 +123,8 @@ Response `200`:
 | RNF-02 | `unit/test_fila_e_celery.py` |
 | RNF-05, RNF-04 | `infra/test_docker_compose.py` |
 | RNF-08 | `infra/test_migrations.py`, `infra/test_docker_compose.py` (API roda `alembic upgrade head`) |
+| RNF-09 | `integration/test_openapi.py` |
+| RNF-10 | `infra/test_deploy_aws.py` |
 | Fluxo completo | `integration/test_fluxo_completo.py`, `e2e/test_e2e_compose.py` |
 
 ## 10. Critérios de aceite do MVP

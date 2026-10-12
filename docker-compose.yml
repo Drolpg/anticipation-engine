@@ -1,65 +1,78 @@
-# Motor de Antecipação de Recebíveis - FIDC Mock
-# Segredos vêm do arquivo .env (nunca commitado) via interpolação ${VAR}.
+# Motor de Antecipação de Recebíveis (FIDC mock)
+# Os segredos vêm do arquivo .env (não versionado): copie de .env.example antes de subir.
+name: anticipation-engine
 
-x-app-common: &app-common
+x-app: &app
   build:
     context: .
     dockerfile: Dockerfile
   image: anticipation-engine:latest
-  env_file: .env
   environment:
-    # Os hosts 'db' e 'redis' são resolvidos pelo DNS interno da rede do Compose.
-    # Nomes batem com core/config.py (Settings.database_url / Settings.redis_url).
-    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # 'db' e 'redis' são resolvidos pelo DNS interno da rede do Compose.
+    DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:?defina POSTGRES_USER no .env}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@db:5432/${POSTGRES_DB:?defina POSTGRES_DB no .env}"
     REDIS_URL: redis://redis:6379/0
+    APP_ENV: ${APP_ENV:-development}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
   networks:
     - app_network
-  depends_on:
-    db:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
   restart: unless-stopped
 
 services:
   api:
-    <<: *app-common
-    container_name: fidc_api
-    # Só a API aplica migrações; o worker apenas espera o banco ficar saudável.
+    <<: *app
+    # Só a API aplica as migrações; o worker espera a API ficar saudável (schema pronto).
     command: sh -c "alembic upgrade head && uvicorn anticipation_engine.main:app --host 0.0.0.0 --port 8000"
-    # Único serviço exposto ao host
+    # Único serviço exposto ao host (apenas em localhost: a API não tem autenticação).
     ports:
-      - "8000:8000"
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   worker:
-    <<: *app-common
-    container_name: fidc_worker
+    <<: *app
     command: celery -A anticipation_engine.worker.celery_app worker --loglevel=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
 
   db:
     image: postgres:17-alpine
-    container_name: fidc_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
       - app_network
+    # Sem 'ports': o banco fica acessível só pela rede interna do Compose.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
-    # NOTA SÊNIOR: Não usamos 'ports: - "5432:5432"' aqui.
-    # O banco de dados fica completamente oculto do hospedeiro e da internet.
 
   redis:
     image: redis:7-alpine
-    container_name: fidc_redis
-    # AOF ligado: mensagens na fila sobrevivem a um restart do Redis
+    # AOF ligado: as mensagens da fila sobrevivem a um restart do Redis.
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -72,12 +85,10 @@ services:
       retries: 10
     restart: unless-stopped
 
-# Declaração das redes isoladas
 networks:
   app_network:
     driver: bridge
 
-# Declaração dos volumes gerenciados
 volumes:
   pg_data:
   redis_data:

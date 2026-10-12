@@ -70,6 +70,16 @@ flowchart TD
 
 ## 📋 Endpoints da API
 
+A documentação é gerada a partir do código (OpenAPI 3) e fica sempre em dia com a API:
+
+| Interface | Caminho |
+|---|---|
+| Swagger UI (testar as chamadas no navegador) | `/docs` |
+| ReDoc (leitura) | `/redoc` |
+| Contrato OpenAPI em JSON | `/openapi.json` |
+
+Cada operação traz descrição, exemplos de payload e todas as respostas de erro (`404`, `422`, `500`, `503`) no envelope padrão.
+
 ### `POST /titulos`
 Submete um novo título para antecipação de recebíveis.
 
@@ -171,6 +181,68 @@ Para subir o ecossistema completo (API, Worker Celery, PostgreSQL 17 e Redis 7):
    ```bash
    uv run pytest -m e2e
    ```
+
+A API fica em `http://localhost:8000` (documentação interativa em `/docs`) e responde apenas em localhost. O banco e o Redis não são expostos ao host.
+
+Comandos úteis:
+```bash
+docker compose up -d --scale worker=3   # mais workers consumindo a mesma fila
+docker compose down                     # para os containers (mantém os dados)
+docker compose down -v                  # para e apaga os volumes (recomeça do zero)
+```
+
+---
+
+## 🔬 Testando a API
+
+Há três formas, da mais rápida à mais próxima de produção. Nos exemplos, `BASE` é o endereço da API.
+
+### 1. Suíte automatizada (sem Docker, SQLite + fakes)
+```bash
+uv run pytest
+```
+
+### 2. Local com PostgreSQL, Redis e worker reais (Docker Compose)
+```bash
+cp .env.example .env
+docker compose up -d --build
+BASE=http://localhost:8000
+```
+
+Teste pelo Swagger (`$BASE/docs`) ou pelo terminal:
+```bash
+# 1) enviar um título: responde 202 na hora, com status PENDENTE
+curl -s -X POST $BASE/titulos -H "Content-Type: application/json" \
+  -d '{"cnpj_sacado":"11.222.333/0001-81","valor_titulo":"1500.50","data_vencimento":"2030-12-31"}'
+
+# 2) consultar com o "id" retornado: PENDENTE agora, APROVADO cerca de 5 s depois
+curl -s $BASE/titulos/<id>
+
+# 3) regra de crédito: valor acima de R$ 1.000.000,00 (ou prazo acima de 365 dias) é REJEITADO
+curl -s -X POST $BASE/titulos -H "Content-Type: application/json" \
+  -d '{"cnpj_sacado":"11.222.333/0001-81","valor_titulo":"2000000.00","data_vencimento":"2030-12-31"}'
+
+# 4) validação: CNPJ inválido responde 422 no envelope de erro
+curl -s -X POST $BASE/titulos -H "Content-Type: application/json" \
+  -d '{"cnpj_sacado":"11.111.111/1111-11","valor_titulo":"10.00","data_vencimento":"2030-12-31"}'
+```
+(`data_vencimento` precisa ser uma data futura. No PowerShell use `curl.exe` em vez de `curl`.)
+
+Conferir o que ficou gravado no PostgreSQL e rodar o E2E automatizado:
+```bash
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, status, valor_titulo from titulos order by criado_em desc limit 5"'
+uv run pytest -m e2e
+```
+
+### 3. No link real (demo publicada)
+A demo roda o mesmo `docker compose` em uma instância EC2, descrita em `deploy/aws` (CloudFormation). Com a URL pública no lugar de `<ENDERECO_DA_DEMO>`:
+```bash
+BASE=http://<ENDERECO_DA_DEMO>
+curl -s $BASE/health            # {"status":"ok"}
+```
+- Swagger: `<ENDERECO_DA_DEMO>/docs`; os passos 1 a 4 acima valem sem alteração.
+- E2E contra o link real: `E2E_BASE_URL=$BASE uv run pytest -m e2e`
+- A demo é um ambiente de testes sem autenticação nem HTTPS: use apenas dados fictícios.
 
 ---
 

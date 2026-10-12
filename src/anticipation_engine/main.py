@@ -27,8 +27,31 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+DESCRICAO = """
+API de antecipação de recebíveis (mock de FIDC).
+
+**Fluxo**
+1. `POST /titulos` valida e salva o título como `PENDENTE` e responde `202` na hora.
+2. Um worker faz a análise de crédito em background (~5 s).
+3. `GET /titulos/{id}` mostra o resultado: `APROVADO` ou `REJEITADO`.
+
+**Regras de análise**: `REJEITADO` se o valor passar de R$ 1.000.000,00 ou o prazo passar de 365 dias.
+
+**Erros** seguem sempre o formato `{"error": {"code", "message", ...}}`. Toda resposta traz `X-Request-ID`
+(envie o seu para correlacionar logs).
+
+Projeto de demonstração: sem autenticação, não use dados reais.
+"""
+
+TAGS = [
+    {"name": "titulos", "description": "Envio e consulta de títulos para antecipação."},
+    {"name": "health", "description": "Disponibilidade do serviço."},
+]
+
 app = FastAPI(
     title="Motor de Antecipação de Recebíveis",
+    description=DESCRICAO,
+    openapi_tags=TAGS,
     lifespan=lifespan,
 )
 

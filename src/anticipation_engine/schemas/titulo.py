@@ -15,9 +15,21 @@ class TituloCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    cnpj_sacado: str
-    valor_titulo: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
-    data_vencimento: date
+    cnpj_sacado: str = Field(
+        description="CNPJ do sacado (devedor do título), com ou sem máscara. Os dígitos verificadores são validados.",
+        examples=["11.222.333/0001-81"],
+    )
+    valor_titulo: Decimal = Field(
+        gt=0,
+        max_digits=18,
+        decimal_places=2,
+        description="Valor de face em reais, maior que zero e com no máximo 2 casas decimais. Envie como string.",
+        examples=["1500.50"],
+    )
+    data_vencimento: date = Field(
+        description="Data de vencimento (AAAA-MM-DD). Deve ser estritamente posterior a hoje.",
+        examples=["2030-12-31"],
+    )
 
     @field_validator("cnpj_sacado")
     @classmethod
@@ -35,8 +47,10 @@ class TituloCreate(BaseModel):
 class TituloCreated(BaseModel):
     """Resposta assíncrona 202 Accepted confirmando recebimento do título."""
 
-    id: uuid.UUID
-    status: StatusTitulo
+    id: uuid.UUID = Field(description="Identificador do título. Use em `GET /titulos/{id}` para acompanhar a análise.")
+    status: StatusTitulo = Field(
+        description="Sempre `PENDENTE` neste momento: a análise de crédito roda em background."
+    )
 
 
 class TituloRead(BaseModel):
@@ -44,10 +58,13 @@ class TituloRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
-    cnpj_sacado: str
-    valor_titulo: Decimal
-    data_vencimento: date
-    status: StatusTitulo
-    criado_em: datetime
-    atualizado_em: datetime
+    id: uuid.UUID = Field(description="Identificador do título.")
+    cnpj_sacado: str = Field(description="CNPJ do sacado, somente dígitos (14).", examples=["11222333000181"])
+    valor_titulo: Decimal = Field(description="Valor de face em reais, como string com 2 casas.", examples=["1500.50"])
+    data_vencimento: date = Field(description="Data de vencimento (AAAA-MM-DD).")
+    status: StatusTitulo = Field(
+        description="`PENDENTE` (em análise), `APROVADO` ou `REJEITADO` "
+        "(valor acima de R$ 1.000.000,00 ou prazo acima de 365 dias)."
+    )
+    criado_em: datetime = Field(description="Momento em que o título foi recebido (UTC).")
+    atualizado_em: datetime = Field(description="Última mudança de status (UTC).")
