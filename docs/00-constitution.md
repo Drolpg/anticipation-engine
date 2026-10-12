@@ -2,21 +2,19 @@
 
 Princípios que valem para **todas** as decisões. Em caso de dúvida, volte aqui.
 
-## 1. Por que este projeto existe
-Preparação prática para a vaga de Desenvolvedor Backend Python na Hope Asset (gestora de FIDCs). O que a vaga valoriza — e que este projeto precisa demonstrar de forma defensável em entrevista: **alta volumetria, estabilidade, integrações, tratamento de erros, correção financeira**.
-
-Meta de aprendizado: o autor deve conseguir explicar **cada linha e cada decisão** em voz alta. Código que ele não consegue explicar é dívida, mesmo que passe nos testes.
+## 1. Objetivo
+Motor de antecipação de recebíveis (API FIDC mock) construído com rigor de código de produção, exercitando as preocupações de sistemas financeiros: **alta volumetria, estabilidade, integrações, tratamento de erros e correção financeira**.
 
 ## 2. Método: SDD + TDD
-| Fase | Artefato | Quem lidera |
-|---|---|---|
-| Especificar | `docs/01-spec.md` | autor + Claude (revisão) |
-| Planejar | `docs/02-plan.md` | autor + Claude |
-| Quebrar em tarefas | `docs/03-tasks.md` | Claude |
-| RED — testes que falham | `tests/**` | Claude escreve, autor lê e entende |
-| GREEN — implementação mínima | `src/**` | autor com Antigravity |
-| REFACTOR | `src/**` | autor com Antigravity, testes verdes |
-| Validar | revisão do diff contra a spec | Claude |
+| Fase | Artefato |
+|---|---|
+| Especificar | `docs/01-spec.md` |
+| Planejar | `docs/02-plan.md` |
+| Quebrar em tarefas | `docs/03-tasks.md` |
+| RED — testes que falham | `tests/**` |
+| GREEN — implementação mínima | `src/**` |
+| REFACTOR | `src/**` (testes verdes) |
+| Validar | revisão do diff contra a spec |
 
 Regras do método:
 1. **Mudou o comportamento? Mude a spec primeiro**, depois o teste, depois o código.
@@ -31,7 +29,7 @@ Regras do método:
 - **Não bloquear**: a API responde rápido (202); trabalho lento vai para o worker.
 - **Observabilidade desde o dia 1**: log estruturado em JSON, `request_id` ponta a ponta, `titulo_id` em todo log do domínio.
 - **Segredos fora do código e do git**; banco e Redis nunca expostos ao host.
-- **Simplicidade deliberada**: o autor precisa entender e construir tudo em ~2 dias. Sem async no ORM, sem microsserviços, sem hexagonal, sem abstrações "para o futuro". O que ficou de fora está listado e justificado no plano (seção "Fora do MVP").
+- **Simplicidade deliberada**: o projeto deve ser simples de entender e de construir de ponta a ponta. Sem async no ORM, sem microsserviços, sem hexagonal, sem abstrações "para o futuro". O que ficou de fora está listado e justificado no plano (seção "Fora do MVP").
 
 ## 4. Qualidade (Definition of Done de qualquer tarefa)
 - [ ] Testes alvo da tarefa verdes; suíte completa verde (`uv run pytest`).
@@ -39,10 +37,10 @@ Regras do método:
 - [ ] Cobertura ≥ 90% (`uv run pytest --cov=anticipation_engine`).
 - [ ] Nenhum segredo, CNPJ ou stack trace em log/resposta.
 - [ ] Spec atualizada se algo mudou.
-- [ ] O autor consegue explicar a decisão principal da tarefa.
+- [ ] A decisão principal da tarefa está clara no código ou na documentação.
 
 ## 5. Convenções
-- Python ≥ 3.13 (ver plano §5), tipagem em todas as assinaturas públicas.
+- Python 3.14 (ver `.python-version`), tipagem em todas as assinaturas públicas.
 - Domínio em português (`Titulo`, `cnpj_sacado`, `StatusTitulo`) — espelha o vocabulário do negócio; infraestrutura em inglês (`get_db`, `celery_app`).
 - Estrutura em camadas (ver plano). Dependência só aponta "para dentro": `api → services → models/db`. Sem hexagonal/portas/repository: simplicidade é requisito.
 - Commits: Conventional Commits (`feat`, `fix`, `test`, `docs`, `refactor`, `chore`).

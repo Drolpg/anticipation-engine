@@ -2,13 +2,13 @@
 
 > Fonte da verdade do comportamento. Versão 1.2 · status: **aprovada para implementação**.
 >
-> **Histórico:** v1.0 versão inicial · v1.1 simplificação (sem hexagonal; metas para 2 dias) · v1.2 Alembic obrigatório (RNF-08).
+> **Histórico:** v1.0 versão inicial · v1.1 simplificação (sem hexagonal) · v1.2 Alembic obrigatório (RNF-08).
 > Mudou o comportamento? Altere aqui primeiro (ver `00-constitution.md`).
 
 ## 1. Visão geral
 API que recebe títulos financeiros (duplicatas/notas fiscais) para antecipação, valida-os, grava-os como `PENDENTE` e responde `202` sem bloquear. Um worker em background faz a análise de crédito (simulada) e decide `APROVADO` ou `REJEITADO`. O cliente acompanha o status por `GET`.
 
-**Fora do escopo do MVP**: autenticação, multi-tenant, cessão/liquidação real, integração com bureau real, paginação/listagem, CNPJ alfanumérico (ver plano §7).
+**Fora do escopo do MVP**: autenticação, multi-tenant, cessão/liquidação real, integração com bureau real, paginação/listagem, CNPJ alfanumérico (ver plano §5).
 
 ## 2. Glossário
 | Termo | Significado |

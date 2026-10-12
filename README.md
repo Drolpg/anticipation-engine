@@ -176,7 +176,7 @@ Para subir o ecossistema completo (API, Worker Celery, PostgreSQL 17 e Redis 7):
 
 ## 💡 Fora do MVP (Evoluções para Produção Real)
 
-Em um ambiente de produção em escala financeira em uma gestora de FIDCs como a Hope Asset, as seguintes extensões seriam integradas:
+Em produção, em escala financeira, as seguintes extensões seriam integradas:
 - **Transactional Outbox Pattern**: Garantir envio transacional de mensagens para o broker mesmo em quedas catastróficas simultâneas de banco e rede.
 - **Job de Reconciliação Periódica (Celery Beat)**: Reprocessar títulos que permaneceram em `PENDENTE` devido a indisponibilidades temporárias no enfileiramento (respostas 503).
 - **Autenticação e Autorização**: mTLS entre sistemas internos, e OAuth2/JWT com escopos granulares de cedente/fundo.

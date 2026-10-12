@@ -45,18 +45,10 @@ O `main.py` da raiz é apagado: o app passa a viver em `anticipation_engine.main
 | Envelope de erro único com `code` estável | Cliente programa contra o `code`. |
 | Log JSON com `logging` da stdlib; configurar **só** o logger `anticipation_engine` (propagate ligado) | Sem dependência extra; não quebra o `caplog` dos testes. |
 
-## 4. Estado atual do repositório (a corrigir)
-- `pyproject.toml`: tem `django` e `boto3` (fora da stack); faltam SQLAlchemy, Celery, psycopg, pydantic-settings, alembic, pytest.
-- `docker-compose.yml`: só `api` + `db`; faltam `worker`, `redis`, healthchecks, `depends_on` com condição; senha em texto; chave `version` obsoleta; `build: .` sem `Dockerfile`; `DATABASE_URL` sem driver (`postgresql+psycopg://`).
-- `main.py` na raiz: `uvicorn.run()` sem argumentos e import sem uso.
-- `README.md` vazio; `.gitignore` sem `.env`.
-
-## 5. Riscos
-| Risco | Mitigação |
+## 4. Pontos de atenção
+| Ponto | Tratamento |
 |---|---|
-| `requires-python >=3.14` pode não ter wheels de alguma dependência (testei em 3.13, não em 3.14) | M0-T2: rodar `uv sync`; se falhar, `uv python pin 3.13`. |
 | `env.py` do Alembic chama `fileConfig` e desliga os loggers da aplicação | Usar `disable_existing_loggers=False` (M2-T3). |
-| Agente "consertar" teste em vez do código | `AGENTS.md` proíbe; revisão do diff por milestone. |
 
-## 6. Fora do MVP (assunto de entrevista, não de código)
+## 5. Fora do MVP (evoluções)
 Outbox/reconciliação para o título órfão · DLQ e retry por tipo de erro · rate limiting · `Idempotency-Key` no POST · autenticação · métricas/tracing · paginação · **CNPJ alfanumérico** (a Receita passa a emitir CNPJ com letras a partir de jul/2026 — vale confirmar a regra; o validador fica isolado em `core/cnpj.py`) · "hoje" no fuso `America/Sao_Paulo` (MVP usa `date.today()` do servidor) · bureau de crédito real no lugar do `sleep`.
