@@ -43,9 +43,8 @@ flowchart TD
    - Tarefas só são confirmadas ao broker **após** a execução com sucesso. Em caso de falha transitória de infraestrutura de banco (`OperationalError`), a tarefa sofre retry automático com backoff exponencial (até 3 tentativas).
 6. **Observabilidade e Sigilo de Dados Bancários / LGPD**:
    - Logs 100% estruturados em JSON serializados por linha.
-   - Mensagens com chaves estáveis (`titulo_recebido`, `analise_concluida`, `falha_ao_enfileirar`).
    - **O CNPJ nunca é registrado nos logs**, garantindo sigilo bancário e conformidade com a LGPD.
-   - Todas as requisições geram ou propagam `X-Request-ID` para rastreamento distribuído fim a fim.
+   - O cabeçalho da resposta sempre propaga ou gera `X-Request-ID`; o `request_id` aparece nos logs de erro 500 e no corpo da resposta de erro, permitindo rastrear o stack trace sem expor detalhes ao cliente.
 7. **Simplicidade Arquitetural (FastAPI Idiomático em Camadas)**:
    - Estrutura clara: `api` → `services` → `models`/`db`; `worker` → `services`. Sem complexidade acidental de arquitetura hexagonal, repositórios desnecessários ou injeção de dependências pesada.
 8. **Banco e Migrações Gerenciados por Alembic**:
