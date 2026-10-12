@@ -27,3 +27,22 @@ Removidos do projeto: `django`, `boto3`.
 
 ## Ao terminar uma tarefa, responda com
 1. Arquivos criados/alterados. 2. Comando(s) rodado(s) e resultado. 3. Decisões não óbvias em até 5 linhas (explique o "porquê"). 4. Qualquer divergência da spec encontrada.
+
+<!-- BEGIN AWS Agent Toolkit rules -->
+# AWS Guidance
+
+- Where these AWS rules conflict with the project's own instructions, the
+  project's instructions take precedence.
+- Prefer the AWS MCP Server for AWS interactions — it provides sandboxed
+  execution, observability, and audit logging. If unavailable, use the
+  AWS CLI directly.
+- Before starting a task, check whether a relevant AWS skill is available.
+  Load the skill with `retrieve_skill` and prefer its guidance over
+  general knowledge.
+- When uncertain about specific AWS details (API parameters, permissions,
+  limits, error codes), verify against documentation rather than guessing.
+  State uncertainty explicitly if you cannot confirm.
+- When creating infrastructure, prefer infrastructure-as-code (AWS CDK or
+  CloudFormation) over direct CLI commands.
+<!-- END AWS Agent Toolkit rules -->
+
