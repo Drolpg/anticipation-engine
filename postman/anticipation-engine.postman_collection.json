@@ -1,0 +1,709 @@
+{
+  "info": {
+    "_postman_id": "4c84db2d-7d84-4861-a0a1-768a4753be55",
+    "name": "Motor de Antecipação de Recebíveis",
+    "description": "Fluxo completo da API: saude, aprovado, rejeitado e erros. Selecione o ambiente (Local ou AWS) e rode a colecao inteira no Collection Runner. O fluxo leva cerca de 30 s por causa da analise assincrona de 5 s.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "tituloAprovadoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tituloRejeitadoValorId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tituloRejeitadoPrazoId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Saúde",
+      "item": [
+        {
+          "name": "GET /health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('status ok', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verifica se a API esta no ar."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Fluxo feliz (aprovado)",
+      "item": [
+        {
+          "name": "POST /titulos (valor pequeno)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('202 Accepted', function () { pm.response.to.have.status(202); });",
+                  "var corpo = pm.response.json();",
+                  "pm.test('status PENDENTE e id UUID', function () { pm.expect(corpo.status).to.eql('PENDENTE'); pm.expect(corpo.id).to.match(/^[0-9a-f-]{36}$/); });",
+                  "pm.test('Location aponta para o titulo', function () { pm.expect(pm.response.headers.get('Location')).to.eql('/titulos/' + corpo.id); });",
+                  "pm.collectionVariables.set('tituloAprovadoId', corpo.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "Responde 202 na hora, sem esperar a analise. O id fica salvo em {{tituloAprovadoId}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.222.333/0001-81\",\n  \"valor_titulo\": \"1500.50\",\n  \"data_vencimento\": \"{{vencimento}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /titulos/{id} (imediato = PENDENTE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('ainda PENDENTE (analise leva ~5s)', function () { pm.expect(pm.response.json().status).to.eql('PENDENTE'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/titulos/{{tituloAprovadoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos",
+                "{{tituloAprovadoId}}"
+              ]
+            },
+            "description": "Consulta logo apos o POST: a analise em background ainda nao terminou."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /titulos/{id} (apos 7s = APROVADO)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "setTimeout(function () {}, 7000);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var t = pm.response.json();",
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('APROVADO', function () { pm.expect(t.status).to.eql('APROVADO'); });",
+                  "pm.test('CNPJ normalizado e valor como string', function () { pm.expect(t.cnpj_sacado).to.eql('11222333000181'); pm.expect(t.valor_titulo).to.eql('1500.50'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/titulos/{{tituloAprovadoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos",
+                "{{tituloAprovadoId}}"
+              ]
+            },
+            "description": "Aguarda 7 segundos antes de enviar (script de pre-request) e confere a decisao do worker."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Regras de crédito (rejeitado)",
+      "item": [
+        {
+          "name": "POST /titulos (valor acima de 1.000.000)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('202 Accepted', function () { pm.response.to.have.status(202); });",
+                  "pm.collectionVariables.set('tituloRejeitadoValorId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "Valor acima de R$ 1.000.000,00 sera REJEITADO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.222.333/0001-81\",\n  \"valor_titulo\": \"2000000.00\",\n  \"data_vencimento\": \"{{vencimento}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /titulos (prazo acima de 365 dias)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('202 Accepted', function () { pm.response.to.have.status(202); });",
+                  "pm.collectionVariables.set('tituloRejeitadoPrazoId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "Prazo acima de 365 dias sera REJEITADO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.222.333/0001-81\",\n  \"valor_titulo\": \"1000.00\",\n  \"data_vencimento\": \"{{vencimentoLongo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET valor alto (apos 7s = REJEITADO)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "setTimeout(function () {}, 7000);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('REJEITADO', function () { pm.expect(pm.response.json().status).to.eql('REJEITADO'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/titulos/{{tituloRejeitadoValorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos",
+                "{{tituloRejeitadoValorId}}"
+              ]
+            },
+            "description": "Aguarda 7 segundos."
+          },
+          "response": []
+        },
+        {
+          "name": "GET prazo longo (REJEITADO)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('REJEITADO', function () { pm.expect(pm.response.json().status).to.eql('REJEITADO'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/titulos/{{tituloRejeitadoPrazoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos",
+                "{{tituloRejeitadoPrazoId}}"
+              ]
+            },
+            "description": "Ja passou o tempo da analise."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Erros",
+      "item": [
+        {
+          "name": "POST CNPJ invalido -> 422",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('code VALIDATION_ERROR no campo cnpj_sacado', function () { var e = pm.response.json().error; pm.expect(e.code).to.eql('VALIDATION_ERROR'); pm.expect(e.details.map(function (d) { return d.field; })).to.include('cnpj_sacado'); });",
+                  "var erro = pm.response.json().error;",
+                  "pm.test('envelope de erro padrao', function () { pm.expect(erro).to.have.property('code'); pm.expect(erro).to.have.property('message'); });",
+                  "pm.test('X-Request-ID presente', function () { pm.response.to.have.header('X-Request-ID'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "CNPJ com digitos verificadores invalidos.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.111.111/1111-11\",\n  \"valor_titulo\": \"10.00\",\n  \"data_vencimento\": \"{{vencimento}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST valor zero -> 422",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422', function () { pm.response.to.have.status(422); });",
+                  "var erro = pm.response.json().error;",
+                  "pm.test('envelope de erro padrao', function () { pm.expect(erro).to.have.property('code'); pm.expect(erro).to.have.property('message'); });",
+                  "pm.test('X-Request-ID presente', function () { pm.response.to.have.header('X-Request-ID'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "Valor deve ser maior que zero.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.222.333/0001-81\",\n  \"valor_titulo\": \"0\",\n  \"data_vencimento\": \"{{vencimento}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST vencimento no passado -> 422",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422', function () { pm.response.to.have.status(422); });",
+                  "var erro = pm.response.json().error;",
+                  "pm.test('envelope de erro padrao', function () { pm.expect(erro).to.have.property('code'); pm.expect(erro).to.have.property('message'); });",
+                  "pm.test('X-Request-ID presente', function () { pm.response.to.have.header('X-Request-ID'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "Vencimento deve ser estritamente futuro.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.222.333/0001-81\",\n  \"valor_titulo\": \"10.00\",\n  \"data_vencimento\": \"{{vencimentoPassado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST campo extra (status) -> 422",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function iso(d) { return d.toISOString().slice(0, 10); }",
+                  "var hoje = new Date();",
+                  "pm.variables.set('vencimento', iso(new Date(hoje.getTime() + 30 * 86400000)));",
+                  "pm.variables.set('vencimentoLongo', iso(new Date(hoje.getTime() + 400 * 86400000)));",
+                  "pm.variables.set('vencimentoPassado', iso(new Date(hoje.getTime() - 86400000)));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422', function () { pm.response.to.have.status(422); });",
+                  "var erro = pm.response.json().error;",
+                  "pm.test('envelope de erro padrao', function () { pm.expect(erro).to.have.property('code'); pm.expect(erro).to.have.property('message'); });",
+                  "pm.test('X-Request-ID presente', function () { pm.response.to.have.header('X-Request-ID'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/titulos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos"
+              ]
+            },
+            "description": "O cliente nao decide o status.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj_sacado\": \"11.222.333/0001-81\",\n  \"valor_titulo\": \"10.00\",\n  \"data_vencimento\": \"{{vencimento}}\",\n  \"status\": \"APROVADO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET titulo inexistente -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('TITULO_NAO_ENCONTRADO', function () { pm.expect(pm.response.json().error.code).to.eql('TITULO_NAO_ENCONTRADO'); });",
+                  "var erro = pm.response.json().error;",
+                  "pm.test('envelope de erro padrao', function () { pm.expect(erro).to.have.property('code'); pm.expect(erro).to.have.property('message'); });",
+                  "pm.test('X-Request-ID presente', function () { pm.response.to.have.header('X-Request-ID'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/titulos/00000000-0000-4000-8000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos",
+                "00000000-0000-4000-8000-000000000000"
+              ]
+            },
+            "description": "UUID valido que nao existe."
+          },
+          "response": []
+        },
+        {
+          "name": "GET id invalido -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422', function () { pm.response.to.have.status(422); });",
+                  "var erro = pm.response.json().error;",
+                  "pm.test('envelope de erro padrao', function () { pm.expect(erro).to.have.property('code'); pm.expect(erro).to.have.property('message'); });",
+                  "pm.test('X-Request-ID presente', function () { pm.response.to.have.header('X-Request-ID'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/titulos/nao-e-uuid",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "titulos",
+                "nao-e-uuid"
+              ]
+            },
+            "description": "O id precisa ser UUID."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
