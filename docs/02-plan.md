@@ -52,3 +52,16 @@ O `main.py` da raiz é apagado: o app passa a viver em `anticipation_engine.main
 
 ## 5. Fora do MVP (evoluções)
 Outbox/reconciliação para o título órfão · DLQ e retry por tipo de erro · rate limiting · `Idempotency-Key` no POST · autenticação · métricas/tracing · paginação · **CNPJ alfanumérico** (a Receita passa a emitir CNPJ com letras a partir de jul/2026 — vale confirmar a regra; o validador fica isolado em `core/cnpj.py`) · "hoje" no fuso `America/Sao_Paulo` (MVP usa `date.today()` do servidor) · bureau de crédito real no lugar do `sleep`.
+
+## 6. Débitos técnicos intencionais
+Escolhas conscientes para manter o projeto simples e barato. A demo publicada é só para testes, com dados fictícios.
+
+| Débito | Por que foi aceito | Risco | Como pagar |
+|---|---|---|---|
+| Sem autenticação nem autorização | Avaliadores acessam direto pelo `/docs`; não há dado sensível | Qualquer pessoa com o link cria títulos e pode encher o banco | OAuth2/JWT com escopos por cedente; no mínimo, chave de API |
+| Sem HTTPS na demo | Exige domínio e certificado; custo e complexidade fora do objetivo | Tráfego em texto puro (uma chave de API ali daria falsa segurança) | Domínio + proxy com certificado, ou ALB + ACM |
+| Sem rate limiting | Mesmo motivo da autenticação | Abuso de volume | Limite por IP no proxy ou na API |
+| Instância única, sem backup do banco | Custo mínimo (uma EC2 com Postgres e Redis em containers) | Perda de dados se a máquina ou o disco falhar | RDS com backup automático, ElastiCache e mais de uma instância da API |
+| Sem outbox/reconciliação | Ver §5 | Título fica `PENDENTE` quando a fila cai (resposta 503) | Transactional Outbox + job de reconciliação |
+
+Mitigações adotadas na demo: dados fictícios avisados na descrição do Swagger, porta 80 restringível a um IP (`deploy.sh up --my-ip`), alerta de orçamento na conta, e `stop`/`destroy` ao fim da avaliação.

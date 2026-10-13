@@ -4,6 +4,10 @@ API e worker assíncrono para recebimento, validação cadastral/estrutural e an
 
 Desenvolvido com foco em **alta confiabilidade transacional, integridade financeira e resiliência de mensageria**, seguindo princípios de **Spec-Driven Development (SDD)** e **Test-Driven Development (TDD)**.
 
+
+> **Demo no ar (ambiente de testes):** API em http://184.194.48.52 · Swagger em http://184.194.48.52/docs
+> Sem autenticação nem HTTPS, apenas dados fictícios. Veja a seção "Débitos técnicos intencionais" abaixo.
+
 ---
 
 ## 🏗️ Arquitetura do Sistema
@@ -228,6 +232,8 @@ curl -s -X POST $BASE/titulos -H "Content-Type: application/json" \
 ```
 (`data_vencimento` precisa ser uma data futura. No PowerShell use `curl.exe` em vez de `curl`.)
 
+**Postman:** importe os arquivos da pasta `postman/` (a coleção e os ambientes *Local* e *AWS*), escolha o ambiente e rode a coleção no Collection Runner. São 14 requisições com asserções (fluxo aprovado, rejeitado e erros) e levam cerca de 30 s por causa da análise assíncrona. Pela linha de comando: `npx newman run postman/anticipation-engine.postman_collection.json -e postman/local.postman_environment.json`.
+
 Conferir o que ficou gravado no PostgreSQL e rodar o E2E automatizado:
 ```bash
 docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, status, valor_titulo from titulos order by criado_em desc limit 5"'
@@ -235,14 +241,26 @@ uv run pytest -m e2e
 ```
 
 ### 3. No link real (demo publicada)
-A demo roda o mesmo `docker compose` em uma instância EC2, descrita em `deploy/aws` (CloudFormation). Com a URL pública no lugar de `<ENDERECO_DA_DEMO>`:
+A demo roda o mesmo `docker compose` em uma instância EC2, descrita em `deploy/aws` (CloudFormation), e fica no ar durante o período de avaliação:
 ```bash
-BASE=http://<ENDERECO_DA_DEMO>
+BASE=http://184.194.48.52
 curl -s $BASE/health            # {"status":"ok"}
 ```
-- Swagger: `<ENDERECO_DA_DEMO>/docs`; os passos 1 a 4 acima valem sem alteração.
+- Swagger: http://184.194.48.52/docs; os passos 1 a 4 acima valem sem alteração.
+- Postman: no ambiente *AWS* (`postman/aws.postman_environment.json`) confira se `baseUrl` aponta para o endereço da demo e rode a mesma coleção.
 - E2E contra o link real: `E2E_BASE_URL=$BASE uv run pytest -m e2e`
 - A demo é um ambiente de testes sem autenticação nem HTTPS: use apenas dados fictícios.
+
+---
+
+## ⚠️ Débitos técnicos intencionais
+
+Decisões conscientes para manter o projeto simples e barato (detalhes em `docs/02-plan.md`, seção 6):
+- **Sem autenticação nem autorização**: a API e o Swagger são abertos para facilitar a avaliação. Use apenas dados fictícios.
+- **Sem HTTPS** na demo publicada (exigiria domínio e certificado).
+- **Sem rate limiting**.
+- **Instância única, sem backup do banco** (PostgreSQL e Redis em containers na mesma máquina).
+- **Sem outbox/reconciliação**: se a fila cair, o título fica `PENDENTE` e a API responde 503.
 
 ---
 
